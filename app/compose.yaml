@@ -1,6 +1,6 @@
 services:
   web:
-    image: httpd:2.4.62        # <- change the tag to prove a deployment (e.g. 2.4.63)
+    image: httpd:2.4.63       # <- change the tag to prove a deployment (e.g. 2.4.63)
     container_name: web
     ports:
       - "8080:80"              # <- or change the host port (must be inside 8080-8090 for the default NSG)
