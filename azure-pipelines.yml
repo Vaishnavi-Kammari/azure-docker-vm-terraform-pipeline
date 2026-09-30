@@ -1,0 +1,53 @@
+# Deploys app/compose.yaml to the Ubuntu VM over SSH on every push to main.
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - app/*
+      - azure-pipelines.yml
+
+pool:
+  vmImage: ubuntu-latest      # use a self-hosted pool if you restrict SSH (port 22) to a fixed CIDR
+
+variables:
+  sshEndpoint: vm-ssh         # name of the SSH service connection (see README)
+  remoteDir: /opt/app         # must match app_dir in Terraform
+
+steps:
+  - checkout: self
+
+  - task: CopyFilesOverSSH@0
+    displayName: Copy compose.yaml to VM
+    inputs:
+      sshEndpoint: $(sshEndpoint)
+      sourceFolder: app
+      contents: compose.yaml
+      targetFolder: $(remoteDir)
+      overwrite: true
+      failOnEmptySource: true
+      cleanTargetFolder: false
+
+  - task: SSH@0
+    displayName: docker compose up -d
+    inputs:
+      sshEndpoint: $(sshEndpoint)
+      runOptions: inline
+      inline: |
+        set -e
+        cd $(remoteDir)
+        docker compose config -q
+        docker compose pull
+        docker compose up -d --remove-orphans
+        echo "=============== DEPLOYED STATE ==============="
+        docker compose ps
+        echo "--- image ---"
+        docker inspect web --format '{{.Config.Image}}'
+        echo "--- port mapping ---"
+        docker compose port web 80
+        echo "--- HTTP check ---"
+        sleep 2
+        PORT=$(docker compose port web 80 | awk -F: '{print $NF}')
+        curl -sSI http://localhost:$PORT | head -n 5
+      failOnStdErr: false
